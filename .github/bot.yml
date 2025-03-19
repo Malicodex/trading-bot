@@ -24,3 +24,4 @@ jobs:
           EXNESS_PASSWORD: ${{ secrets.EXNESS_PASSWORD }}
           EXNESS_SERVER: ${{ secrets.EXNESS_SERVER }}
         run: python scalping_bot.py --mode live --account standard
+        

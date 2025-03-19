@@ -75,58 +75,74 @@ class ScalpingBot:
         self.retry_delay = 60  # seconds
 
     def initialize_mt5_terminal(self):
-        """Enhanced MT5 initialization with multiple attempts and verification"""
+        """Enhanced MT5 initialization with confirmed path"""
+        mt5_path = "C:\\Program Files\\MetaTrader 5\\terminal64.exe"
+        print(f"\nUsing MT5 path: {mt5_path}")
+
         def verify_connection():
             try:
                 if self.mt5.terminal_info() and self.mt5.terminal_info().connected:
                     account_info = self.mt5.account_info()
                     if account_info is not None:
+                        print(f"✅ Account connected: {account_info.login}")
                         return True
+                    print("❌ Account info not available")
+                    return False
+                print("❌ Terminal not connected")
                 return False
-            except:
+            except Exception as e:
+                print(f"❌ Verification error: {e}")
                 return False
 
         max_attempts = 5
         for attempt in range(max_attempts):
             try:
+                print(f"\nAttempt {attempt + 1} of {max_attempts} to initialize MT5...")
+                
                 # Force close any existing MT5 instances
                 if self.mt5.terminal_info():
+                    print("Shutting down existing MT5 instance...")
                     self.mt5.shutdown()
                     time.sleep(5)
 
-                # Kill any existing MT5 processes (Windows only)
-                if os.name == 'nt':
-                    os.system('taskkill /f /im terminal64.exe')
-                    time.sleep(5)
+                # Kill any existing MT5 processes
+                print("Terminating any existing terminal64.exe processes...")
+                os.system('taskkill /f /im terminal64.exe')
+                time.sleep(5)
 
                 # Initialize MT5
+                print("Initializing MT5...")
                 initialized = self.mt5.initialize(
+                    path=mt5_path,
                     login=int(EXNESS_ACCOUNT),
                     password=EXNESS_PASSWORD,
                     server=EXNESS_SERVER,
-                    path="C:\\Program Files\\MetaTrader 5\\terminal64.exe",
                     timeout=60000
                 )
 
                 if not initialized:
                     error = self.mt5.last_error()
-                    print(f"Attempt {attempt + 1}: MT5 initialization failed: {error}")
+                    print(f"❌ MT5 initialization failed: {error}")
                     if attempt < max_attempts - 1:
-                        time.sleep(30)  # Longer delay between attempts
+                        print("Waiting 30 seconds before next attempt...")
+                        time.sleep(30)
                     continue
 
-                # Verify connection
-                for _ in range(3):
-                    if verify_connection():
-                        print(f"✅ MT5 connected successfully on attempt {attempt + 1}")
-                        return True
-                    time.sleep(10)
+                print("Verifying connection...")
+                if verify_connection():
+                    print(f"✅ MT5 connected successfully on attempt {attempt + 1}")
+                    return True
+                
+                print("Connection verification failed, retrying...")
+                time.sleep(10)
 
             except Exception as e:
-                print(f"Attempt {attempt + 1} failed with error: {e}")
+                print(f"❌ Attempt {attempt + 1} failed with error: {e}")
                 if attempt < max_attempts - 1:
+                    print("Waiting 30 seconds before next attempt...")
                     time.sleep(30)
 
+        print("❌ All initialization attempts failed")
         return False
 
     def fetch_data(self, symbol, timeframe, bars=100):

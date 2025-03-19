@@ -78,15 +78,20 @@ class ScalpingBot:
         """Connect to MT5 with retry logic"""
         for attempt in range(self.max_retries):
             try:
-                # Initialize MT5 platform
+                # Ensure MT5 is not initialized
+                if self.mt5.terminal_info():
+                    self.mt5.shutdown()
+                
+                # Initialize MT5 platform with explicit path
                 if not self.mt5.initialize(
                     login=int(EXNESS_ACCOUNT),
                     password=EXNESS_PASSWORD,
-                    server=EXNESS_SERVER
-                    # Remove hardcoded Windows path
+                    server=EXNESS_SERVER,
+                    path="C:\\Program Files\\MetaTrader 5\\terminal64.exe"
                 ):
                     error = self.mt5.last_error()
                     print(f"MT5 initialization failed. Error: {error}")
+                    self.send_telegram_message(f"MT5 initialization attempt {attempt + 1} failed: {error}")
                     if attempt < self.max_retries - 1:
                         print(f"Retrying in {self.retry_delay} seconds...")
                         time.sleep(self.retry_delay)
@@ -95,6 +100,7 @@ class ScalpingBot:
                 # Check connection
                 if not self.mt5.terminal_info().connected:
                     print("Terminal not connected to server")
+                    self.send_telegram_message(f"MT5 connection attempt {attempt + 1}: Terminal not connected")
                     if attempt < self.max_retries - 1:
                         print(f"Retrying in {self.retry_delay} seconds...")
                         time.sleep(self.retry_delay)
@@ -103,20 +109,28 @@ class ScalpingBot:
                 print("✅ MT5 connected successfully")
                 account_info = self.mt5.account_info()
                 if account_info is not None:
-                    print(f"Account: {account_info.login}")
-                    print(f"Balance: {account_info.balance}")
-                    print(f"Equity: {account_info.equity}")
+                    status = (
+                        f"MT5 Connected Successfully\n"
+                        f"Account: {account_info.login}\n"
+                        f"Balance: ${account_info.balance:.2f}\n"
+                        f"Equity: ${account_info.equity:.2f}"
+                    )
+                    print(status)
+                    self.send_telegram_message(status)
                     return True
                 else:
                     print("Failed to get account info")
+                    self.send_telegram_message("Failed to get account info")
                     
             except Exception as e:
                 print(f"Connection attempt {attempt + 1} failed: {e}")
+                self.send_telegram_message(f"MT5 connection error: {str(e)}")
             
             if attempt < self.max_retries - 1:
                 print(f"Retrying in {self.retry_delay} seconds...")
                 time.sleep(self.retry_delay)
         
+        self.send_telegram_message("Failed to connect to MT5 after multiple attempts")
         return False
 
     def fetch_data(self, symbol, timeframe, bars=100):

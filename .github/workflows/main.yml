@@ -21,13 +21,13 @@ permissions:
 
 jobs:
   trading-bot:
-    runs-on: windows-latest
+    runs-on: windows-latest  # Must use Windows for MT5
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b  # v3.0.2
+      - uses: actions/checkout@v3
       
-      - uses: actions/setup-python@d27e3f3d7c64b4bbf8e4abfb9b63b83e846e0435  # v4.5.0
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.9'
           cache: 'pip'
@@ -38,20 +38,28 @@ jobs:
           pip install wheel
           pip install --no-cache-dir -r requirements.txt
           
-      - name: Download MT5
+      - name: Download and Install MT5
         run: |
+          # Download MT5 installer
           Invoke-WebRequest -Uri "https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe" -OutFile mt5setup.exe
           
-      - name: Install MT5
-        run: |
+          # Install MT5 silently and wait
           Start-Process -FilePath "mt5setup.exe" -ArgumentList "/auto" -Wait
-          Start-Sleep -Seconds 30  # Wait for MT5 to initialize
+          Start-Sleep -Seconds 60  # Increased wait time
           
-          # Add MT5 terminal path to system PATH
+          # Kill any existing MT5 processes
+          Get-Process | Where-Object {$_.Name -like "*terminal64*"} | Stop-Process -Force
+          Start-Sleep -Seconds 10
+          
+          # Add MT5 to PATH
           $env:Path += ";C:\Program Files\MetaTrader 5"
           [Environment]::SetEnvironmentVariable("PATH", $env:Path, [System.EnvironmentVariableTarget]::Machine)
           
-          # Verify MT5 installation
+          # Start MT5 terminal explicitly
+          Start-Process "C:\Program Files\MetaTrader 5\terminal64.exe"
+          Start-Sleep -Seconds 30
+          
+          # Verify installation
           if (!(Test-Path "C:\Program Files\MetaTrader 5\terminal64.exe")) {
             Write-Error "MT5 installation failed - terminal64.exe not found"
             exit 1
@@ -109,5 +117,6 @@ jobs:
               Invoke-RestMethod -Uri $url -Method Post -Headers $headers -InFile "${artifactName}.zip"
             }
           }
+
 
 

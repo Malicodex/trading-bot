@@ -78,12 +78,38 @@ class ScalpingBot:
         """Connect to MT5 with retry logic"""
         for attempt in range(self.max_retries):
             try:
-                if self.mt5.initialize():
-                    if self.mt5.login(login=int(EXNESS_ACCOUNT), 
-                                    password=EXNESS_PASSWORD, 
-                                    server=EXNESS_SERVER):
-                        print("✅ MT5 connected successfully.")
-                        return True
+                # Initialize MT5 platform
+                if not self.mt5.initialize(
+                    login=int(EXNESS_ACCOUNT),
+                    password=EXNESS_PASSWORD,
+                    server=EXNESS_SERVER,
+                    path="C:\\Program Files\\MetaTrader 5\\terminal64.exe"  # Specify path
+                ):
+                    error = self.mt5.last_error()
+                    print(f"MT5 initialization failed. Error: {error}")
+                    if attempt < self.max_retries - 1:
+                        print(f"Retrying in {self.retry_delay} seconds...")
+                        time.sleep(self.retry_delay)
+                    continue
+
+                # Check connection
+                if not self.mt5.terminal_info().connected:
+                    print("Terminal not connected to server")
+                    if attempt < self.max_retries - 1:
+                        print(f"Retrying in {self.retry_delay} seconds...")
+                        time.sleep(self.retry_delay)
+                    continue
+
+                print("✅ MT5 connected successfully")
+                account_info = self.mt5.account_info()
+                if account_info is not None:
+                    print(f"Account: {account_info.login}")
+                    print(f"Balance: {account_info.balance}")
+                    print(f"Equity: {account_info.equity}")
+                    return True
+                else:
+                    print("Failed to get account info")
+                    
             except Exception as e:
                 print(f"Connection attempt {attempt + 1} failed: {e}")
             

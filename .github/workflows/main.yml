@@ -1,29 +1,52 @@
-name: Trading Bot
+name: Trading Bot Live
 on:
   schedule:
     - cron: '*/5 * * * *'  # Runs every 5 minutes
-  workflow_dispatch:        # Allows manual trigger
-  push:                    # Runs on every push to test setup
+  workflow_dispatch:        # Manual trigger
+    inputs:
+      account_type:
+        description: 'Account type (cent/standard)'
+        required: true
+        default: 'standard'
+        type: choice
+        options:
+          - standard
+          - cent
 
 jobs:
   run-bot:
-    runs-on: windows-latest  # Changed from ubuntu-latest to windows-latest
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v2
+      
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
           python-version: '3.9'
+          
+      - name: Download and Install MT5
+        run: |
+          Invoke-WebRequest -Uri "https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe" -OutFile mt5setup.exe
+          Start-Process -FilePath "mt5setup.exe" -ArgumentList "/auto" -Wait
+          
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install wheel
           pip install --no-cache-dir -r requirements.txt
-      - name: Run bot
+          
+      - name: Download previous model
+        uses: actions/download-artifact@v2
+        with:
+          name: model-files
+          path: .
+        continue-on-error: true
+        
+      - name: Run live trading
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           EXNESS_ACCOUNT: ${{ secrets.EXNESS_ACCOUNT }}
           EXNESS_PASSWORD: ${{ secrets.EXNESS_PASSWORD }}
           EXNESS_SERVER: ${{ secrets.EXNESS_SERVER }}
-        run: python scalping_bot.py --mode live --account standard
+        run: python scalping_bot.py --mode live --account ${{ github.event.inputs.account_type || 'standard' }}

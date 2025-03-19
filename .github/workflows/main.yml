@@ -25,9 +25,9 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b  # v3.0.2
       
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@d27e3f3d7c64b4bbf8e4abfb9b63b83e846e0435  # v4.5.0
         with:
           python-version: '3.9'
           cache: 'pip'
@@ -46,7 +46,7 @@ jobs:
         run: |
           Start-Process -FilePath "mt5setup.exe" -ArgumentList "/auto" -Wait
           
-      - uses: dawidd6/action-download-artifact@v2
+      - uses: dawidd6/action-download-artifact@268677152d06ba59fcec7a7f0b5d961b6ccd7e1e  # v2.27.0
         with:
           name: model-files
           path: .
@@ -63,7 +63,7 @@ jobs:
         run: |
           python scalping_bot.py --mode live --account ${{ github.event.inputs.account_type || 'standard' }}
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@83fd05a356d7e2593de66fc9913b3002723633cb  # v3.1.1
         if: always()
         with:
           name: model-files

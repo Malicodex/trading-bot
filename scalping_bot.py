@@ -74,47 +74,59 @@ class ScalpingBot:
         self.max_retries = 3
         self.retry_delay = 60  # seconds
 
-    def connect_mt5_with_retry(self):
-        """Connect to MT5 with retry logic"""
-        for attempt in range(self.max_retries):
+    def initialize_mt5_terminal(self):
+        """Enhanced MT5 initialization with multiple attempts and verification"""
+        def verify_connection():
+            try:
+                if self.mt5.terminal_info() and self.mt5.terminal_info().connected:
+                    account_info = self.mt5.account_info()
+                    if account_info is not None:
+                        return True
+                return False
+            except:
+                return False
+
+        max_attempts = 5
+        for attempt in range(max_attempts):
             try:
                 # Force close any existing MT5 instances
                 if self.mt5.terminal_info():
                     self.mt5.shutdown()
-                    time.sleep(5)  # Wait for shutdown
-                
-                # Initialize MT5 platform
-                if not self.mt5.initialize(
+                    time.sleep(5)
+
+                # Kill any existing MT5 processes (Windows only)
+                if os.name == 'nt':
+                    os.system('taskkill /f /im terminal64.exe')
+                    time.sleep(5)
+
+                # Initialize MT5
+                initialized = self.mt5.initialize(
                     login=int(EXNESS_ACCOUNT),
                     password=EXNESS_PASSWORD,
                     server=EXNESS_SERVER,
                     path="C:\\Program Files\\MetaTrader 5\\terminal64.exe",
-                    timeout=60000  # Increase timeout to 60 seconds
-                ):
+                    timeout=60000
+                )
+
+                if not initialized:
                     error = self.mt5.last_error()
-                    print(f"MT5 initialization attempt {attempt + 1} failed: {error}")
-                    self.send_telegram_message(f"MT5 initialization attempt {attempt + 1} failed: {error}")
-                    if attempt < self.max_retries - 1:
-                        time.sleep(self.retry_delay)
+                    print(f"Attempt {attempt + 1}: MT5 initialization failed: {error}")
+                    if attempt < max_attempts - 1:
+                        time.sleep(30)  # Longer delay between attempts
                     continue
 
-                # Additional connection verification
-                for _ in range(3):  # Try connection check multiple times
-                    if self.mt5.terminal_info() and self.mt5.terminal_info().connected:
-                        print("✅ MT5 connected successfully")
+                # Verify connection
+                for _ in range(3):
+                    if verify_connection():
+                        print(f"✅ MT5 connected successfully on attempt {attempt + 1}")
                         return True
                     time.sleep(10)
-                
-                print("Terminal not connected to server")
-                
+
             except Exception as e:
-                print(f"Connection attempt {attempt + 1} failed: {e}")
-                self.send_telegram_message(f"MT5 connection error: {str(e)}")
-                
-            if attempt < self.max_retries - 1:
-                time.sleep(self.retry_delay)
-        
-        self.send_telegram_message("Failed to connect to MT5 after multiple attempts")
+                print(f"Attempt {attempt + 1} failed with error: {e}")
+                if attempt < max_attempts - 1:
+                    time.sleep(30)
+
         return False
 
     def fetch_data(self, symbol, timeframe, bars=100):
@@ -367,7 +379,7 @@ class ScalpingBot:
         print(f"Initial Balance: {self.initial_balance}")
         print("=====================\n")
         
-        if not self.connect_mt5_with_retry():
+        if not self.initialize_mt5_terminal():
             print("Failed to connect to MT5 after multiple attempts")
             return
             
@@ -388,6 +400,52 @@ class ScalpingBot:
         finally:
             if self.mt5.initialize():
                 self.mt5.shutdown()
+
+    def run_continuous(self):
+        """Continuous running mode with automatic recovery"""
+        while True:
+            try:
+                print("\n=== Bot Configuration ===")
+                print(f"Mode: {self.mode}")
+                print(f"Account Type: {self.account_type}")
+                print(f"Trading Symbols: {', '.join(self.symbols)}")
+                print(f"Initial Balance: {self.initial_balance}")
+                print("=====================\n")
+
+                if not self.initialize_mt5_terminal():
+                    print("Failed to initialize MT5. Retrying in 5 minutes...")
+                    time.sleep(300)
+                    continue
+
+                if not self.load_model():
+                    self.train_model()
+
+                while True:
+                    try:
+                        # Verify MT5 connection before each iteration
+                        if not self.mt5.terminal_info().connected:
+                            raise ConnectionError("MT5 connection lost")
+
+                        self.check_and_trade()
+                        
+                    except ConnectionError:
+                        print("Connection lost. Reinitializing...")
+                        break
+                    except Exception as e:
+                        print(f"Error in trading loop: {e}")
+                        self.send_telegram_message(f"Trading error: {e}")
+                        time.sleep(60)  # Wait before retrying
+
+            except Exception as e:
+                print(f"Critical error: {e}")
+                self.send_telegram_message(f"Critical error: {e}")
+                time.sleep(300)  # Wait 5 minutes before complete restart
+            finally:
+                try:
+                    if self.mt5.initialize():
+                        self.mt5.shutdown()
+                except:
+                    pass
 
     def check_and_trade(self):
         """Single iteration of trading checks"""
@@ -462,13 +520,20 @@ if __name__ == "__main__":
                       help='Trading mode: live or backtest')
     parser.add_argument('--account', choices=['cent', 'standard'], default='cent',
                       help='Account type: cent or standard')
+    parser.add_argument('--continuous', action='store_true',
+                      help='Run in continuous mode with automatic recovery')
     
     args = parser.parse_args()
     
     try:
         print(f"Starting Scalping Bot in {args.mode} mode with {args.account} account...")
         bot = ScalpingBot(mode=args.mode, account_type=args.account)
-        bot.run()  # This line was missing
+        
+        if args.continuous and args.mode == 'live':
+            bot.run_continuous()
+        else:
+            bot.run()
+            
     except KeyboardInterrupt:
         print("\nBot stopped by user")
     except Exception as e:

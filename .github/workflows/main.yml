@@ -47,6 +47,16 @@ jobs:
           Start-Process -FilePath "mt5setup.exe" -ArgumentList "/auto" -Wait
           Start-Sleep -Seconds 30  # Wait for MT5 to initialize
           
+          # Add MT5 terminal path to system PATH
+          $env:Path += ";C:\Program Files\MetaTrader 5"
+          [Environment]::SetEnvironmentVariable("PATH", $env:Path, [System.EnvironmentVariableTarget]::Machine)
+          
+          # Verify MT5 installation
+          if (!(Test-Path "C:\Program Files\MetaTrader 5\terminal64.exe")) {
+            Write-Error "MT5 installation failed - terminal64.exe not found"
+            exit 1
+          }
+          
       - name: Run backtest
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -99,4 +109,5 @@ jobs:
               Invoke-RestMethod -Uri $url -Method Post -Headers $headers -InFile "${artifactName}.zip"
             }
           }
+
 

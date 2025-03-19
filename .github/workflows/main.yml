@@ -13,16 +13,24 @@ on:
           - standard
           - cent
 
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   run-bot:
     runs-on: windows-latest  # Must use Windows for MT5
+    timeout-minutes: 30      # Add timeout to prevent hanging
+
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v3    # Updated to v3
       
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4  # Updated to v4
         with:
           python-version: '3.9'
+          cache: 'pip'  # Enable pip caching
           
       - name: Download and Install MT5
         run: |
@@ -36,9 +44,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install wheel
           pip install --no-cache-dir -r requirements.txt
-          
+        
       - name: Download previous model
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3  # Updated to v3
         with:
           name: model-files
           path: .
@@ -51,11 +59,12 @@ jobs:
           EXNESS_ACCOUNT: ${{ secrets.EXNESS_ACCOUNT }}
           EXNESS_PASSWORD: ${{ secrets.EXNESS_PASSWORD }}
           EXNESS_SERVER: ${{ secrets.EXNESS_SERVER }}
-        run: python scalping_bot.py --mode live --account ${{ github.event.inputs.account_type || 'standard' }}
+        run: |
+          python scalping_bot.py --mode live --account ${{ github.event.inputs.account_type || 'standard' }}
 
       - name: Upload model files
-        if: success()
-        uses: actions/upload-artifact@v2
+        if: always()  # Changed from success() to always()
+        uses: actions/upload-artifact@v3  # Updated to v3
         with:
           name: model-files
           path: |

@@ -45,15 +45,28 @@ jobs:
       - name: Install MT5
         run: |
           Start-Process -FilePath "mt5setup.exe" -ArgumentList "/auto" -Wait
+          Start-Sleep -Seconds 30  # Wait for MT5 to initialize
           
-      - uses: dawidd6/action-download-artifact@268677152d06ba59fcec7a7f0b5d961b6ccd7e1e  # v2.27.0
-        with:
-          name: model-files
-          path: .
-          workflow: main.yml
-          if_no_artifact_found: warn
-        
+      - name: Run backtest
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          EXNESS_ACCOUNT: ${{ secrets.EXNESS_ACCOUNT }}
+          EXNESS_PASSWORD: ${{ secrets.EXNESS_PASSWORD }}
+          EXNESS_SERVER: ${{ secrets.EXNESS_SERVER }}
+        run: |
+          python scalping_bot.py --mode backtest --account ${{ github.event.inputs.account_type || 'standard' }}
+          
+      - name: Save backtest results
+        if: success()
+        run: |
+          New-Item -ItemType Directory -Path "_artifacts" -Force
+          if (Test-Path "model.pkl") { Copy-Item "model.pkl" "_artifacts/" }
+          if (Test-Path "scaler.pkl") { Copy-Item "scaler.pkl" "_artifacts/" }
+          Compress-Archive -Path "_artifacts/*" -DestinationPath "backtest_results.zip" -Force
+          
       - name: Run trading bot
+        if: success()
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -63,33 +76,27 @@ jobs:
         run: |
           python scalping_bot.py --mode live --account ${{ github.event.inputs.account_type || 'standard' }}
 
-      # Alternative approach for uploading artifacts
       - name: Upload model files
         if: always()
         run: |
           $artifactName = "model-files"
-          $files = @("model.pkl", "scaler.pkl")
           
-          # Create temporary directory
-          New-Item -ItemType Directory -Path "_artifacts" -Force
-          
-          # Copy files to temporary directory
-          foreach ($file in $files) {
-            if (Test-Path $file) {
-              Copy-Item $file "_artifacts/"
+          # Ensure files exist before trying to upload
+          if ((Test-Path "model.pkl") -or (Test-Path "scaler.pkl")) {
+            New-Item -ItemType Directory -Path "_artifacts" -Force
+            if (Test-Path "model.pkl") { Copy-Item "model.pkl" "_artifacts/" }
+            if (Test-Path "scaler.pkl") { Copy-Item "scaler.pkl" "_artifacts/" }
+            Compress-Archive -Path "_artifacts/*" -DestinationPath "${artifactName}.zip" -Force
+            
+            $headers = @{
+              "Authorization" = "Bearer ${{ github.token }}"
+              "Content-Type" = "application/zip"
+            }
+            
+            $url = "https://api.github.com/repos/${{ github.repository }}/actions/artifacts"
+            
+            if (Test-Path "${artifactName}.zip") {
+              Invoke-RestMethod -Uri $url -Method Post -Headers $headers -InFile "${artifactName}.zip"
             }
           }
-          
-          # Compress artifacts
-          Compress-Archive -Path "_artifacts/*" -DestinationPath "${artifactName}.zip" -Force
-          
-          # Upload using REST API
-          $headers = @{
-            "Authorization" = "Bearer ${{ github.token }}"
-            "Content-Type" = "application/zip"
-          }
-          
-          $url = "https://api.github.com/repos/${{ github.repository }}/actions/artifacts"
-          
-          Invoke-RestMethod -Uri $url -Method Post -Headers $headers -InFile "${artifactName}.zip"
 

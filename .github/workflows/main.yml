@@ -43,12 +43,15 @@ jobs:
           # Download MT5 installer
           Invoke-WebRequest -Uri "https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe" -OutFile mt5setup.exe
           
+          # Create installation directory if it doesn't exist
+          New-Item -ItemType Directory -Force -Path "C:\Program Files\MetaTrader 5"
+          
           # Install MT5 silently and wait
           Start-Process -FilePath "mt5setup.exe" -ArgumentList "/auto" -Wait
           Start-Sleep -Seconds 60  # Increased wait time
           
           # Kill any existing MT5 processes
-          Get-Process | Where-Object {$_.Name -like "*terminal64*"} | Stop-Process -Force
+          Get-Process | Where-Object {$_.Name -like "*terminal64*"} | Stop-Process -Force -ErrorAction SilentlyContinue
           Start-Sleep -Seconds 10
           
           # Add MT5 to PATH
@@ -61,9 +64,10 @@ jobs:
           
           # Verify installation
           if (!(Test-Path "C:\Program Files\MetaTrader 5\terminal64.exe")) {
-            Write-Error "MT5 installation failed - terminal64.exe not found"
+            Write-Error "MT5 installation failed - terminal64.exe not found at expected path"
             exit 1
           }
+          Write-Host "✅ MT5 installation verified successfully"
           
       - name: Run backtest
         env:
@@ -117,6 +121,7 @@ jobs:
               Invoke-RestMethod -Uri $url -Method Post -Headers $headers -InFile "${artifactName}.zip"
             }
           }
+
 
 
 

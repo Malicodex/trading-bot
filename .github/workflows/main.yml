@@ -17,7 +17,7 @@ on:
 
 permissions:
   contents: read
-  actions: write # Required for downloading/uploading artifacts
+  actions: write
 
 jobs:
   trading-bot:
@@ -25,11 +25,9 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
       
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.9'
           cache: 'pip'
@@ -48,12 +46,12 @@ jobs:
         run: |
           Start-Process -FilePath "mt5setup.exe" -ArgumentList "/auto" -Wait
           
-      - uses: actions/download-artifact@v3
-        name: Download previous model
+      - uses: dawidd6/action-download-artifact@v2
         with:
           name: model-files
           path: .
-        continue-on-error: true
+          workflow: main.yml
+          if_no_artifact_found: warn
         
       - name: Run trading bot
         env:
@@ -66,12 +64,9 @@ jobs:
           python scalping_bot.py --mode live --account ${{ github.event.inputs.account_type || 'standard' }}
 
       - uses: actions/upload-artifact@v3
-        name: Upload model files
         if: always()
         with:
           name: model-files
           path: |
             model.pkl
             scaler.pkl
-
-

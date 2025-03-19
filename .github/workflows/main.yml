@@ -15,6 +15,10 @@ on:
           - standard
           - cent
 
+permissions:
+  contents: read
+  actions: write # Required for downloading/uploading artifacts
+
 jobs:
   trading-bot:
     runs-on: windows-latest
@@ -44,8 +48,8 @@ jobs:
         run: |
           Start-Process -FilePath "mt5setup.exe" -ArgumentList "/auto" -Wait
           
-      - name: Download previous model
-        uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v3
+        name: Download previous model
         with:
           name: model-files
           path: .
@@ -61,12 +65,13 @@ jobs:
         run: |
           python scalping_bot.py --mode live --account ${{ github.event.inputs.account_type || 'standard' }}
 
-      - name: Upload model files
+      - uses: actions/upload-artifact@v3
+        name: Upload model files
         if: always()
-        uses: actions/upload-artifact@v3
         with:
           name: model-files
           path: |
             model.pkl
             scaler.pkl
+
 

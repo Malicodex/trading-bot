@@ -63,10 +63,33 @@ jobs:
         run: |
           python scalping_bot.py --mode live --account ${{ github.event.inputs.account_type || 'standard' }}
 
-      - uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce  # v3.1.2
+      # Alternative approach for uploading artifacts
+      - name: Upload model files
         if: always()
-        with:
-          name: model-files
-          path: |
-            model.pkl
-            scaler.pkl
+        run: |
+          $artifactName = "model-files"
+          $files = @("model.pkl", "scaler.pkl")
+          
+          # Create temporary directory
+          New-Item -ItemType Directory -Path "_artifacts" -Force
+          
+          # Copy files to temporary directory
+          foreach ($file in $files) {
+            if (Test-Path $file) {
+              Copy-Item $file "_artifacts/"
+            }
+          }
+          
+          # Compress artifacts
+          Compress-Archive -Path "_artifacts/*" -DestinationPath "${artifactName}.zip" -Force
+          
+          # Upload using REST API
+          $headers = @{
+            "Authorization" = "Bearer ${{ github.token }}"
+            "Content-Type" = "application/zip"
+          }
+          
+          $url = "https://api.github.com/repos/${{ github.repository }}/actions/artifacts"
+          
+          Invoke-RestMethod -Uri $url -Method Post -Headers $headers -InFile "${artifactName}.zip"
+

@@ -15,7 +15,7 @@ on:
 
 jobs:
   run-bot:
-    runs-on: windows-latest
+    runs-on: windows-latest  # Must use Windows for MT5
     steps:
       - uses: actions/checkout@v2
       
@@ -26,7 +26,9 @@ jobs:
           
       - name: Download and Install MT5
         run: |
+          # Download MT5 installer
           Invoke-WebRequest -Uri "https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe" -OutFile mt5setup.exe
+          # Install MT5 silently
           Start-Process -FilePath "mt5setup.exe" -ArgumentList "/auto" -Wait
           
       - name: Install dependencies
@@ -50,3 +52,12 @@ jobs:
           EXNESS_PASSWORD: ${{ secrets.EXNESS_PASSWORD }}
           EXNESS_SERVER: ${{ secrets.EXNESS_SERVER }}
         run: python scalping_bot.py --mode live --account ${{ github.event.inputs.account_type || 'standard' }}
+
+      - name: Upload model files
+        if: success()
+        uses: actions/upload-artifact@v2
+        with:
+          name: model-files
+          path: |
+            model.pkl
+            scaler.pkl

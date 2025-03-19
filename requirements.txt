@@ -1,0 +1,8 @@
+python-dotenv
+MetaTrader5
+pyTelegramBotAPI
+pandas
+numpy
+scikit-learn
+ta
+joblib

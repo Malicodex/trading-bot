@@ -82,8 +82,8 @@ class ScalpingBot:
                 if not self.mt5.initialize(
                     login=int(EXNESS_ACCOUNT),
                     password=EXNESS_PASSWORD,
-                    server=EXNESS_SERVER,
-                    path="C:\\Program Files\\MetaTrader 5\\terminal64.exe"  # Specify path
+                    server=EXNESS_SERVER
+                    # Remove hardcoded Windows path
                 ):
                     error = self.mt5.last_error()
                     print(f"MT5 initialization failed. Error: {error}")
